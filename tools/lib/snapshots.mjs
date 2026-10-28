@@ -57,6 +57,9 @@ const MARKER_STYLES = {
   '.js': {open: '// source: ', close: ''},
   '.mjs': {open: '// source: ', close: ''},
   '.json': null, // JSON cannot carry a comment; the marker lives in <name>.source next to it
+  ...Object.fromEntries(
+    ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif', '.ico', '.svg', '.woff', '.woff2', '.ttf', '.otf', '.pdf', '.mp4', '.webm'].map((ext) => [ext, null]),
+  ),
 };
 
 /** Sidecar file holding the marker of a file that cannot carry one (JSON): `versions.json.source`. */
@@ -112,12 +115,13 @@ export async function readMarkerOf(file, content) {
   return m ? m[1] : null;
 }
 
-/** Write a translated file with its marker set (in the content, or in the sidecar for JSON). */
+/** Write a translated file with its marker set (in the content, or in the sidecar for JSON and binary assets). */
 export async function writeMarked(file, content, hash) {
   if (markerStyle(file)) {
-    await writeText(file, setMarker(file, content, hash));
+    await writeText(file, setMarker(file, content.toString('utf8'), hash));
   } else {
-    await writeText(file, content);
+    if (Buffer.isBuffer(content)) await writeBytes(file, content);
+    else await writeText(file, content);
     await writeText(sidecarOf(file), `${hash}\n`);
   }
 }
