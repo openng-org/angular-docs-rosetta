@@ -66,7 +66,9 @@ export async function makeRepo({example = true, git = false, origin = false} = {
   await mkdir(path.join(root, '.github', 'workflows'), {recursive: true});
   await writeFile(path.join(root, '.github', 'workflows', 'template-canary.yml'), 'name: canary\n');
   if (example) {
-    const from = path.join(packageRoot, 'i18n', '_example');
+    // A frozen copy of the template's example language: the suite must pass in repositories where
+    // `create-language --remove-example` deleted i18n/_example.
+    const from = path.join(fixturesDir, 'example');
     const to = path.join(root, 'i18n', '_example');
     await mkdir(path.join(to, 'src'), {recursive: true});
     for (const f of ['site.json', 'LANGUAGE.md', 'glossary.json', 'README.md']) await cp(path.join(from, f), path.join(to, f));

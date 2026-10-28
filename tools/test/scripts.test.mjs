@@ -44,3 +44,14 @@ describe('package.json scripts', () => {
     assert.deepEqual(aliases.sort(), subcommands.map(([, name]) => name).sort());
   });
 });
+
+describe('test independence', () => {
+  test("no test reads the repository's own i18n/ (instances delete i18n/_example)", async () => {
+    const {readdir} = await import('node:fs/promises');
+    const dir = path.join(packageRoot, 'tools', 'test');
+    for (const f of (await readdir(dir)).filter((n) => n.endsWith('.mjs'))) {
+      const src = await read(path.join(dir, f));
+      assert.ok(!/packageRoot,\s*'i18n'/.test(src), `${f} reads packageRoot/i18n: use tools/test/fixtures instead`);
+    }
+  });
+});
