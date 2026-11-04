@@ -16,10 +16,10 @@ import path from 'node:path';
 import pc from 'picocolors';
 import {command, langArg, resolveLang} from '../lib/cli.mjs';
 import {applyMechanicalChange, formatDiff} from '../lib/diff.mjs';
-import {exists, readText} from '../lib/fs.mjs';
+import {exists, readBytes, readText} from '../lib/fs.mjs';
 import {fail, log} from '../lib/log.mjs';
 import {adevSrc, langSrcDir, originDir} from '../lib/paths.mjs';
-import {blobHash, copySnapshot, normalizeNewlines, readMarkerOf, snapshotOf, stripMarker, writeMarked} from '../lib/snapshots.mjs';
+import {blobHash, copySnapshot, looksLikeText, markerStyle, normalizeNewlines, readMarkerOf, snapshotOf, stripMarker, writeMarked} from '../lib/snapshots.mjs';
 import {STATES, blobContent, computeStatus} from '../lib/status-core.mjs';
 
 export default command({
@@ -66,6 +66,10 @@ async function applyMechanical({lang, src}, target) {
     const snapshot = snapshotOf(translated);
     if (!(await exists(translated)) || !(await exists(snapshot))) {
       log.error(`${rel}: need both the translation and its snapshot`);
+      continue;
+    }
+    if (!looksLikeText(await readBytes(snapshot))) {
+      log.error(`${rel}: binary file, nothing to apply mechanically: update it by hand, then run --mark`);
       continue;
     }
     const current = await readText(translated);
@@ -195,7 +199,8 @@ async function init({src, args}, rel) {
   const translated = path.join(src, rel);
   const snapshot = snapshotOf(translated);
   if ((await exists(translated)) && !args.force) fail(`${path.relative(process.cwd(), translated)} exists; use --force to overwrite`);
-  const content = normalizeNewlines(await readText(upstream));
+  const content = normalizeNewlines(await readBytes(upstream));
+  if (markerStyle(translated) && !looksLikeText(content)) fail(`${rel} is binary and ${path.extname(rel)} has no sidecar marker: add the extension to MARKER_STYLES in tools/lib/snapshots.mjs`);
   await copySnapshot(upstream, snapshot);
   await writeMarked(translated, content, blobHash(content));
   log.ok(`snapshot: ${path.relative(process.cwd(), snapshot)}`);
@@ -206,8 +211,8 @@ async function mark({lang, src}, rel) {
   const translated = path.join(src, rel);
   const snapshot = snapshotOf(translated);
   if (!(await exists(translated)) || !(await exists(snapshot))) fail(`need both ${rel} and its .en snapshot under i18n/${lang}/src`);
-  const hash = blobHash(await readText(snapshot));
-  await writeMarked(translated, stripMarker(await readText(translated)), hash);
+  const hash = blobHash(await readBytes(snapshot));
+  await writeMarked(translated, markerStyle(translated) ? stripMarker(await readText(translated)) : await readBytes(translated), hash);
   log.ok(`marker set to ${hash.slice(0, 10)} on ${rel}. Run: pnpm check ${lang} ${path.relative(process.cwd(), translated)}`);
 }
 
@@ -216,6 +221,10 @@ async function showDiff({src}, rel) {
   const snapshot = snapshotOf(translated);
   const upstream = path.join(adevSrc(originDir), rel);
   if (!(await exists(snapshot))) fail(`no snapshot for ${rel}; nothing translated yet (use --init)`);
+  if (!looksLikeText(await readBytes(snapshot))) {
+    log.warn(`${rel} is binary: no text diff. Compare it with origin/adev/src/${rel}, update the translation, then run --mark`);
+    return;
+  }
   const snapshotText = await readText(snapshot);
   const upstreamText = (await exists(upstream)) ? await readText(upstream) : null;
   if (upstreamText !== null && blobHash(upstreamText) !== blobHash(snapshotText)) {

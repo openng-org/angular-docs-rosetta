@@ -12,7 +12,7 @@ import {
 } from './adev.mjs';
 import {loadDictionaries} from './languages.mjs';
 import {INDEX_HTML, NAVIGATION_FILE, adevSrc, langSrcDir, originDir, rootDir} from './paths.mjs';
-import {blobHash, listSnapshots, readMarkerOf, stripMarker} from './snapshots.mjs';
+import {blobHash, listSnapshots, looksLikeText, readMarkerOf, stripMarker} from './snapshots.mjs';
 
 export const STATES = {
   upToDate: 'up-to-date',
@@ -90,10 +90,12 @@ export async function computeStatus(lang, {withClasses = true} = {}) {
 }
 
 async function describePair(rel, snap, originSrc, {withClasses}) {
-  const snapshotText = await readText(snap.snapshot);
-  const snapshotHash = blobHash(snapshotText);
+  const snapshotBuf = await readFile(snap.snapshot);
+  const snapshotText = snapshotBuf.toString('utf8');
+  const snapshotHash = blobHash(snapshotBuf);
   const upstreamBuf = await readFile(path.join(originSrc, rel));
   const upstreamHash = blobHash(upstreamBuf);
+  if (!looksLikeText(snapshotBuf)) withClasses = false;
   const hasTranslation = await exists(snap.translated);
   if (!hasTranslation) {
     return {rel, state: STATES.orphanSnapshot, snapshotHash};

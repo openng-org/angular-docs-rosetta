@@ -17,12 +17,12 @@ import pc from 'picocolors';
 import {applyIndexHtmlPairs, checkPipelinePairs, extractNavLabels} from '../lib/adev.mjs';
 import {command, langArg, resolveLang, restPositionals} from '../lib/cli.mjs';
 import {git} from '../lib/exec.mjs';
-import {exists, readText} from '../lib/fs.mjs';
+import {exists, readBytes, readText} from '../lib/fs.mjs';
 import {lintGlossary, writeGlossaryRules} from '../lib/glossary.mjs';
 import {loadDictionaries, loadGlossary, loadLanguageRules, loadSite} from '../lib/languages.mjs';
 import {ALERT_KEYWORDS, countAlerts, countCodeFences, countDocsElements, extractHeadings, extractLinkTargets, extractStepTitles, proseLines} from '../lib/markdown.mjs';
 import {INDEX_HTML, NAVIGATION_FILE, adevSrc, langSrcDir, originDir, rootDir, toPosix} from '../lib/paths.mjs';
-import {blobHash, hasMarkerLine, isSnapshot, listSnapshots, markerStyle, readMarkerOf, sidecarOf, snapshotOf, stripMarker} from '../lib/snapshots.mjs';
+import {blobHash, hasMarkerLine, isSnapshot, listOverlayFiles, listSnapshots, looksLikeText, markerStyle, readMarkerOf, sidecarOf, snapshotOf, stripMarker} from '../lib/snapshots.mjs';
 
 export default command({
   meta: {name: 'check', description: 'Validate translations, dictionaries and language configuration'},
@@ -115,7 +115,18 @@ class Checker {
         return abs.startsWith(src) ? abs : path.join(src, p);
       });
     }
-    return (await listSnapshots(lang)).map((s) => s.translated);
+    const snapshots = await listSnapshots(lang);
+    const paired = new Set(snapshots.map((s) => s.rel));
+    const unpaired = [];
+    const upstreamSrc = adevSrc(originDir);
+    if (await exists(upstreamSrc)) {
+      for (const rel of await listOverlayFiles(lang)) {
+        if (paired.has(rel) || !(await exists(path.join(upstreamSrc, rel)))) continue;
+        const file = path.join(src, rel);
+        if (!markerStyle(file) || looksLikeText(await readBytes(file))) unpaired.push(file);
+      }
+    }
+    return [...snapshots.map((s) => s.translated), ...unpaired];
   }
 
   // -------------------------------------------------------------------------------------------
@@ -134,10 +145,12 @@ class Checker {
       this.err(label, `no snapshot ${path.basename(snapshot)} next to it: the next sync would overwrite this translation`);
       return;
     }
-    const translated = await readText(file);
-    const english = await readText(snapshot);
+    const translatedBuf = await readBytes(file);
+    const englishBuf = await readBytes(snapshot);
+    const translated = translatedBuf.toString('utf8');
+    const english = englishBuf.toString('utf8');
     const marker = await readMarkerOf(file, translated);
-    const snapshotHash = blobHash(english);
+    const snapshotHash = blobHash(englishBuf);
     if (!marker) {
       const where = markerStyle(file) ? 'on the first line' : `in ${path.basename(sidecarOf(file))} next to it`;
       this.err(label, `no source marker ${where} (expected: source: ${snapshotHash}; pnpm status ${lang} --mark ${rel})`);
@@ -148,6 +161,10 @@ class Checker {
     const upstream = path.join(adevSrc(originDir), rel);
     if ((await exists(adevSrc(originDir))) && !(await exists(upstream))) {
       this.warn(label, 'upstream no longer has this file: move or delete the pair');
+    }
+    if (!looksLikeText(englishBuf) || !looksLikeText(translatedBuf)) {
+      if (translatedBuf.equals(englishBuf)) this.warn(label, 'identical to the English snapshot: nothing translated yet');
+      return;
     }
 
     const ext = path.extname(file).toLowerCase();

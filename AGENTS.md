@@ -6,7 +6,7 @@ This repository translates the Angular documentation site (angular.dev, the `ade
 
 - `i18n/<lang>/src/**` mirrors `origin/adev/src/**`. A translated file `x.md` always has a sibling snapshot `x.en.md` (the English it was translated from) and starts with `<!-- source: <hash> -->` where `<hash>` is the git blob hash of that snapshot (`git hash-object x.en.md`). Same rule for app templates (`x.html` + `x.en.html`, marker `<!-- source: … -->`) and TypeScript overlays (`x.ts` + `x.en.ts`, marker `// source: …`).
 - `i18n/<lang>/LANGUAGE.md` holds the language rules (front matter is machine-checked), `glossary.json` the terminology (its `forbidden` renderings fail `pnpm check`), `dictionaries/*.json` the UI strings. Read them before translating anything.
-- JSON overlays cannot carry a comment: their marker lives in `<file>.source` next to them (`pnpm status --init` and `--mark` handle it).
+- JSON and binary overlays (images, fonts, SVG) cannot carry a comment: their marker lives in `<file>.source` next to them (`pnpm status --init` and `--mark` handle it).
 - `tools/` holds the scripts; `tools/adev-patches/` the code patches applied at build time; `.agents/skills/` the skills.
 
 ## Skills

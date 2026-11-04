@@ -11,7 +11,7 @@ For every translated file there are two files side by side:
 | `i18n/<lang>/src/content/guide/signals/overview.en.md` | The English page exactly as it was in upstream when you translated it (the *snapshot*). Refreshed by `pnpm update-origin`; never edit it by hand. |
 | `i18n/<lang>/src/content/guide/signals/overview.md` | Your translation. First line: `<!-- source: <hash> -->`, the git blob hash of the snapshot (`git hash-object overview.en.md`). |
 
-Same scheme for app templates (`.html` + `.en.html`, same marker) and TypeScript overlays (`.ts` + `.en.ts`, marker `// source: <hash>`). JSON files cannot carry a comment, so their marker lives in a sidecar: `versions.json` + `versions.en.json` + `versions.json.source`; `pnpm status --init` and `--mark` write it for you.
+Same scheme for app templates (`.html` + `.en.html`, same marker) and TypeScript overlays (`.ts` + `.en.ts`, marker `// source: <hash>`). JSON files cannot carry a comment, so their marker lives in a sidecar: `versions.json` + `versions.en.json` + `versions.json.source`; `pnpm status --init` and `--mark` write it for you. Binary assets (images, fonts, SVG, PDF, video) work the same way: `logo.png` + `logo.en.png` + `logo.png.source`, bytes untouched. They have no diff class and no mechanical apply: replace the file by hand, then `--mark`.
 
 Why both: the snapshot gives everyone the exact English you worked from, so the next sync can show a readable diff; the hash tells the tooling whether your translation still matches the current snapshot.
 
